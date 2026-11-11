@@ -149,7 +149,15 @@ int check_winnner(){
         return board[2][1];
   }
 
-  return -1;
+  for (int r = 0; r < 3; r++){
+    for(int c = 0; c < 3; c++){
+      if(board[r][c] == EMPTY){
+        return -1;
+      }
+    }
+  }
+
+  return 0;
 }
 
 int main() {
