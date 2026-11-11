@@ -57,8 +57,8 @@ void vexcodeInit() {
 //----------------------------------------------------------------------------
 //                                                                            
 //    Module:       main.cpp                                                  
-//    Author:       {author}                                                  
-//    Created:      {date}                                                    
+//    Author:       Brandon Choi · Matthias Six · Onna Okeke · Nathaniel Rayman                                                  
+//    Created:      Wednesday November 11 2026                                                    
 //    Description:  IQ project                                                
 //                                                                            
 //----------------------------------------------------------------------------
@@ -73,12 +73,14 @@ const int EMPTY = 0;
 const int HUMAN = 1;
 const int ROBOT = 2;
 
+// Creates an empty board
 int board[3][3] = {
   { EMPTY, EMPTY, EMPTY }, 
   { EMPTY, EMPTY, EMPTY }, 
   { EMPTY, EMPTY, EMPTY }
 };
 
+// Prints the board
 void print_board(){
   Brain.Screen.clearScreen();
   Brain.Screen.setCursor(1, 1);
@@ -92,24 +94,68 @@ void print_board(){
   }
 }
 
-void update_board(int move, int bx, int by){
+// Updates the board with a game move
+bool update_board(int move, int bx, int by){
   if(board[bx][by] != EMPTY) {
     print_board();
 
-    Brain.Screen.setCursor(1, 5);
+    Brain.Screen.setCursor(5, 1);
     Brain.Screen.print("Invalid input");
+
+    return false;
 
   }else{
     board[bx][by] = move;
     print_board();
+
+    return true;
   }
 
 }
 
+int check_winnner(){
+  // checks for any rows of winners
+  for (int r = 0; r < 3; r++) {
+    if (board[r][0] != EMPTY &&
+        board[r][0] == board[r][1] &&
+        board[r][1] == board[r][2]) {
+
+        return board[r][0];
+    }
+  }
+
+  //checks for any cols of winners
+  for (int c = 0; c < 3; c++) {
+    if (board[0][c] != EMPTY &&
+        board[0][c] == board[1][c] &&
+        board[1][c] == board[2][c]) {
+
+        return board[0][c];
+    }
+  }
+
+  //checks for first diagonal of winners
+  if (board[0][0] != EMPTY &&
+        board[0][0] == board[1][1] &&
+        board[1][1] == board[2][2]) {
+
+        return board[0][0];
+  }
+  //checks for any other diagonal of winners
+  if (board[2][1] != EMPTY &&
+        board[2][1] == board[1][1] &&
+        board[1][1] == board[0][2]) {
+
+        return board[2][1];
+  }
+
+  return -1;
+}
 
 int main() {
   // Initializing Robot Configuration. DO NOT REMOVE!
   vexcodeInit();
+
   // Begin project code
   print_board();
 
@@ -118,6 +164,6 @@ int main() {
   wait(2, seconds);
   update_board(ROBOT, 0, 2);
   wait(2, seconds);
-  update_board(HUMAN, 2, 2);
+  update_board(HUMAN, 0, 2);
     
 }
