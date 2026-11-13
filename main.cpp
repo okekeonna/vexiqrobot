@@ -29,7 +29,7 @@ brain Brain;
 // Robot configuration code.
 inertial BrainInertial = inertial();
 optical Optical8 = optical(PORT8);
-motor x_motor = motor(PORT1, false);
+motor x_motor = motor(PORT6, false);
 bumper Bumper2 = bumper(PORT2);
 touchled TouchLED3 = touchled(PORT3);
 motor pen_motor = motor(PORT4, false);
@@ -330,7 +330,8 @@ void find_best_move(int &bestRow, int &bestCol) {
 void reset_game(){
 
   while(!TouchLED3.pressing()){};
-  x_motor.spin(forward, 20, percent);
+  x_motor.setMaxTorque(100, percent);
+  x_motor.spin(forward, 60, percent);
   while(!Bumper2.pressing()){}
   x_motor.stop();
   
@@ -338,9 +339,26 @@ void reset_game(){
 
 // make the mark // Matthias function
 void make_mark(){
-  pen_motor.setVelocity(10, percent);
+  pen_motor.setVelocity(70, percent);
   pen_motor.spinFor(forward, 140, degrees);
   pen_motor.spinFor(reverse, 140, degrees);
+}
+
+void move_to_mark(int x, int y){
+
+  int xspin = x*160;
+  int yspin = y*160;
+
+  x_motor.spinFor(reverse, xspin, degrees);
+  y_motor.spinFor(forward, yspin, degrees);
+  make_mark();
+
+  x_motor.spinFor(forward, xspin, degrees);
+  y_motor.spinFor(reverse, yspin, degrees);
+
+  x_motor.stop();
+  y_motor.stop();
+
 }
 
 
@@ -350,8 +368,8 @@ int main() {
 
 
   //move
-  y_motor.setVelocity(20, percent);
-  y_motor.spin(reverse);
+  //y_motor.setVelocity(20, percent);
+  //y_motor.spin(reverse);
 
 
   // // Human plays two moves
@@ -378,17 +396,46 @@ int main() {
   //     wait(100, msec);
   // }
 
-  //reset_game();
-  //make_mark();
+  x_motor.setVelocity(60, percent);
+  y_motor.setVelocity(50, percent);
+  pen_motor.setVelocity(70, percent);
 
-  // makes three dots
-  // x_motor.setVelocity(20, percent);
-  // x_motor.spinFor(forward, 120, degrees);
+  x_motor.setMaxTorque(100, percent);
+  y_motor.setMaxTorque(100, percent);
+
+
+  reset_game();
+  move_to_mark(0, 0);
+
+  move_to_mark(2, 2);
+
+  move_to_mark(1, 1);
+
+  // x_motor.spinFor(reverse, 500, degrees);
+  
+  // // makes three dots
+
+  // x_motor.spinFor(forward, 160, degrees);
   // make_mark();
-  // x_motor.spinFor(forward, 120, degrees);
+  // x_motor.spinFor(forward, 160, degrees);
   // make_mark();
-  // x_motor.spinFor(forward, 120, degrees);
+  // x_motor.spinFor(forward, 160, degrees);
   // make_mark();
+
+  // y_motor.spinFor(forward, 160, degrees);
+  // make_mark();
+  // x_motor.spinFor(reverse, 160, degrees);
+  // make_mark();
+  // x_motor.spinFor(reverse, 160, degrees);
+  // make_mark();
+  
+  // y_motor.spinFor(forward, 160, degrees);
+  // make_mark();
+  // x_motor.spinFor(forward, 160, degrees);
+  // make_mark();
+  // x_motor.spinFor(forward, 160, degrees);
+  // make_mark();
+  
 
   //multiplied by the column number
 
