@@ -28,6 +28,7 @@ brain Brain;
 
 // Robot configuration code.
 inertial BrainInertial = inertial();
+optical Optical8 = optical(PORT8);
 
 
 // generating and setting random seed
@@ -44,6 +45,52 @@ void initializeRandomSeed(){
   srand(seed); 
 }
 
+// Converts a color to a string
+const char* convertColorToString(color col) {
+  if (col == colorType::red) return "red";
+  else if (col == colorType::green) return "green";
+  else if (col == colorType::blue) return "blue";
+  else if (col == colorType::white) return "white";
+  else if (col == colorType::yellow) return "yellow";
+  else if (col == colorType::orange) return "orange";
+  else if (col == colorType::purple) return "purple";
+  else if (col == colorType::cyan) return "cyan";
+  else if (col == colorType::black) return "black";
+  else if (col == colorType::transparent) return "transparent";
+  else if (col == colorType::red_violet) return "red_violet";
+  else if (col == colorType::violet) return "violet";
+  else if (col == colorType::blue_violet) return "blue_violet";
+  else if (col == colorType::blue_green) return "blue_green";
+  else if (col == colorType::yellow_green) return "yellow_green";
+  else if (col == colorType::yellow_orange) return "yellow_orange";
+  else if (col == colorType::red_orange) return "red_orange";
+  else if (col == colorType::none) return "none";
+  else return "unknown";
+}
+
+
+// Convert colorType to string
+const char* convertColorToString(colorType col) {
+  if (col == colorType::red) return "red";
+  else if (col == colorType::green) return "green";
+  else if (col == colorType::blue) return "blue";
+  else if (col == colorType::white) return "white";
+  else if (col == colorType::yellow) return "yellow";
+  else if (col == colorType::orange) return "orange";
+  else if (col == colorType::purple) return "purple";
+  else if (col == colorType::cyan) return "cyan";
+  else if (col == colorType::black) return "black";
+  else if (col == colorType::transparent) return "transparent";
+  else if (col == colorType::red_violet) return "red_violet";
+  else if (col == colorType::violet) return "violet";
+  else if (col == colorType::blue_violet) return "blue_violet";
+  else if (col == colorType::blue_green) return "blue_green";
+  else if (col == colorType::yellow_green) return "yellow_green";
+  else if (col == colorType::yellow_orange) return "yellow_orange";
+  else if (col == colorType::red_orange) return "red_orange";
+  else if (col == colorType::none) return "none";
+  else return "unknown";
+}
 
 
 void vexcodeInit() {
@@ -160,6 +207,29 @@ int check_winnner(){
   return 0;
 }
 
+int check_color(){
+
+  int myhue = Optical8.hue();
+  int move = 0;
+
+  Brain.Screen.setCursor(6, 1);
+  wait(1, seconds);
+  Brain.Screen.clearScreen();
+
+  if (myhue < 150) {
+    Brain.Screen.print("Green");
+    move = 2;
+  } else if (myhue > 150 && myhue < 330){
+    Brain.Screen.print("Purple");
+    move = 1;
+  } else {
+    Brain.Screen.print("White");
+    move = 0
+  }
+
+  return move;
+}
+
 int main() {
   // Initializing Robot Configuration. DO NOT REMOVE!
   vexcodeInit();
@@ -167,11 +237,20 @@ int main() {
   // Begin project code
   print_board();
 
-  wait(2, seconds);
-  update_board(HUMAN, 1, 2);
-  wait(2, seconds);
-  update_board(ROBOT, 0, 2);
-  wait(2, seconds);
-  update_board(HUMAN, 0, 2);
-    
+  // wait(2, seconds);
+  // update_board(HUMAN, 1, 2);
+  // wait(2, seconds);
+  // update_board(ROBOT, 0, 2);
+  // wait(2, seconds);
+  // update_board(HUMAN, 0, 2);
+
+  Optical8.setLight(ledState::on);
+  color mycolor = Optical8.color();
+  Brain.Screen.setCursor(6, 1);
+
+  while(true){
+    check_color();
+  }
+  
+
 }
