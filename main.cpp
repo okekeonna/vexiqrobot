@@ -29,6 +29,11 @@ brain Brain;
 // Robot configuration code.
 inertial BrainInertial = inertial();
 optical Optical8 = optical(PORT8);
+motor x_motor = motor(PORT1, false);
+bumper Bumper2 = bumper(PORT2);
+touchled TouchLED3 = touchled(PORT3);
+motor pen_motor = motor(PORT4, false);
+motor y_motor = motor(PORT5, false);
 
 
 // generating and setting random seed
@@ -193,7 +198,7 @@ int check_winnner(){
         board[2][0] == board[1][1] &&
         board[1][1] == board[0][2]) {
 
-        return board[2][1];
+        return board[2][0];
   }
 
   for (int r = 0; r < 3; r++){
@@ -230,23 +235,176 @@ int check_color(){
   return move;
 }
 
+//Minimax algorithm 
+int minimax(int depth, bool isMaximizing) {
+    int result = check_winnner();
+
+    // Base cases: game has ended
+    if (result == ROBOT) return 10 - depth;
+    if (result == HUMAN) return depth - 10;
+    if (result == 0) return 0;
+
+    if (isMaximizing) {
+        int bestScore = -1000;
+
+        for (int r = 0; r < 3; r++) {
+            for (int c = 0; c < 3; c++) {
+                if (board[r][c] == EMPTY) {
+
+                    // Simulate robot move
+                    board[r][c] = ROBOT;
+
+                    // Evaluate human's response
+                    int score = minimax(depth + 1, false);
+
+                    // Undo simulated move
+                    board[r][c] = EMPTY;
+
+                    if (score > bestScore) {
+                        bestScore = score;
+                    }
+                }
+            }
+        }
+
+        return bestScore;
+
+    } else {
+        int bestScore = 1000;
+
+        for (int r = 0; r < 3; r++) {
+            for (int c = 0; c < 3; c++) {
+                if (board[r][c] == EMPTY) {
+
+                    // Simulate human move
+                    board[r][c] = HUMAN;
+
+                    // Evaluate robot's response
+                    int score = minimax(depth + 1, true);
+
+                    // Undo simulated move
+                    board[r][c] = EMPTY;
+
+                    if (score < bestScore) {
+                        bestScore = score;
+                    }
+                }
+            }
+        }
+
+        return bestScore;
+    }
+}
+
+// Find best move
+void find_best_move(int &bestRow, int &bestCol) {
+    int bestScore = -1000;
+
+    bestRow = -1;
+    bestCol = -1;
+
+    for (int r = 0; r < 3; r++) {
+        for (int c = 0; c < 3; c++) {
+            if (board[r][c] == EMPTY) {
+
+                // Try placing the robot's piece
+                board[r][c] = ROBOT;
+
+                // Evaluate the move
+                int score = minimax(0, false);
+
+                // Undo the move
+                board[r][c] = EMPTY;
+
+                if (score > bestScore) {
+                    bestScore = score;
+                    bestRow = r;
+                    bestCol = c;
+                }
+            }
+        }
+    }
+}
+
+// reset the game // Matthias function
+void reset_game(){
+
+  while(!TouchLED3.pressing()){};
+  x_motor.spin(forward, 20, percent);
+  while(!Bumper2.pressing()){}
+  x_motor.stop();
+  
+}
+
+// make the mark // Matthias function
+void make_mark(){
+  pen_motor.setVelocity(10, percent);
+  pen_motor.spinFor(forward, 140, degrees);
+  pen_motor.spinFor(reverse, 140, degrees);
+}
+
+
 int main() {
   // Initializing Robot Configuration. DO NOT REMOVE!
   vexcodeInit();
 
-  // Begin project code
-  print_board();
 
-  wait(2, seconds);
-  update_board(ROBOT, 1, 2);
-  wait(2, seconds);
-  update_board(ROBOT, 0, 2);
-  wait(2, seconds);
-  update_board(ROBOT, 2, 2);
+  //move
+  y_motor.setVelocity(20, percent);
+  y_motor.spin(reverse);
 
-  Brain.Screen.setCursor(6, 1);
-  int winner = check_winnner();
-  Brain.Screen.print("%d ", winner);
+
+  // // Human plays two moves
+  // update_board(HUMAN, 1, 1);
+  // update_board(HUMAN, 0, 1);
+
+  // // Robot already has one move
+  // update_board(ROBOT, 0, 0);
+
+  // wait(2, seconds);
+
+  // // Ask minimax to find the best move
+  // int bestRow, bestCol;
+  // find_best_move(bestRow, bestCol);
+
+  // if (bestRow != -1) {
+  //     update_board(ROBOT, bestRow, bestCol);
+  // }
+
+  // Brain.Screen.setCursor(5, 1);
+  // Brain.Screen.print("Robot: (%d,%d)", bestRow, bestCol);
+
+  // while (true) {
+  //     wait(100, msec);
+  // }
+
+  //reset_game();
+  //make_mark();
+
+  // makes three dots
+  // x_motor.setVelocity(20, percent);
+  // x_motor.spinFor(forward, 120, degrees);
+  // make_mark();
+  // x_motor.spinFor(forward, 120, degrees);
+  // make_mark();
+  // x_motor.spinFor(forward, 120, degrees);
+  // make_mark();
+
+  //multiplied by the column number
+
+  // // Begin project code
+  // print_board();
+
+  // wait(2, seconds);
+  // update_board(ROBOT, 1, 2);
+  // wait(2, seconds);
+  // update_board(ROBOT, 0, 2);
+  // wait(2, seconds);
+  // update_board(ROBOT, 2, 2);
+
+  // Brain.Screen.setCursor(6, 1);
+  // int winner = check_winnner();
+  // Brain.Screen.print("%d ", winner);
 
   // Optical8.setLight(ledState::on);
   // color mycolor = Optical8.color();
@@ -255,6 +413,8 @@ int main() {
   // while(true){
   //   check_color();
   // }
+
+
   
 
 }
