@@ -189,8 +189,8 @@ int check_winnner(){
         return board[0][0];
   }
   //checks for any other diagonal of winners
-  if (board[2][1] != EMPTY &&
-        board[2][1] == board[1][1] &&
+  if (board[2][0] != EMPTY &&
+        board[2][0] == board[1][1] &&
         board[1][1] == board[0][2]) {
 
         return board[2][1];
@@ -224,7 +224,7 @@ int check_color(){
     move = 1;
   } else {
     Brain.Screen.print("White");
-    move = 0
+    move = 0;
   }
 
   return move;
@@ -237,20 +237,24 @@ int main() {
   // Begin project code
   print_board();
 
-  // wait(2, seconds);
-  // update_board(HUMAN, 1, 2);
-  // wait(2, seconds);
-  // update_board(ROBOT, 0, 2);
-  // wait(2, seconds);
-  // update_board(HUMAN, 0, 2);
+  wait(2, seconds);
+  update_board(ROBOT, 1, 2);
+  wait(2, seconds);
+  update_board(ROBOT, 0, 2);
+  wait(2, seconds);
+  update_board(ROBOT, 2, 2);
 
-  Optical8.setLight(ledState::on);
-  color mycolor = Optical8.color();
   Brain.Screen.setCursor(6, 1);
+  int winner = check_winnner();
+  Brain.Screen.print("%d ", winner);
 
-  while(true){
-    check_color();
-  }
+  // Optical8.setLight(ledState::on);
+  // color mycolor = Optical8.color();
+  // Brain.Screen.setCursor(6, 1);
+
+  // while(true){
+  //   check_color();
+  // }
   
 
 }
