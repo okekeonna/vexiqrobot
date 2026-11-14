@@ -28,7 +28,7 @@ brain Brain;
 
 // Robot configuration code.
 inertial BrainInertial = inertial();
-optical Optical8 = optical(PORT8);
+optical Optical1 = optical(PORT1);
 motor x_motor = motor(PORT6, false);
 bumper Bumper2 = bumper(PORT2);
 touchled TouchLED3 = touchled(PORT3);
@@ -214,7 +214,7 @@ int check_winnner(){
 
 int check_color(){
 
-  int myhue = Optical8.hue();
+  int myhue = Optical1.hue();
   int move = 0;
 
   Brain.Screen.setCursor(6, 1);
@@ -361,11 +361,76 @@ void move_to_mark(int x, int y){
 
 }
 
+void read_mark(int x, int y){
+  // go to the mark
+  move_to_mark(x, y);
+  
+  wait(2, seconds);
+  // read color
+  int mark = check_color();
+
+  Brain.Screen.setCursor(5, 1);
+  Brain.Screen.print("%d ", mark);
+
+}
+
+void make_dot_grid(){
+  // makes three x three dots
+
+  x_motor.spinFor(forward, 160, degrees);
+  make_mark();
+  x_motor.spinFor(forward, 160, degrees);
+  make_mark();
+  x_motor.spinFor(forward, 160, degrees);
+  make_mark();
+
+  y_motor.spinFor(forward, 160, degrees);
+  make_mark();
+  x_motor.spinFor(reverse, 160, degrees);
+  make_mark();
+  x_motor.spinFor(reverse, 160, degrees);
+  make_mark();
+  
+  y_motor.spinFor(forward, 160, degrees);
+  make_mark();
+  x_motor.spinFor(forward, 160, degrees);
+  make_mark();
+  x_motor.spinFor(forward, 160, degrees);
+  make_mark();
+}
+
+/*
+void checkGrid(){
+  for(int r = 0; r < 3; r++){
+    for(int c = 0; c < 3; c++){
+      if(board[r][c] == EMPTY){
+        move_to_mark(x, y);
+        check_color();
+      }
+    }
+  }
+}
+*/
+
+void setMotors(){
+  x_motor.setVelocity(60, percent);
+  y_motor.setVelocity(50, percent);
+  pen_motor.setVelocity(70, percent);
+
+  x_motor.setMaxTorque(100, percent);
+  y_motor.setMaxTorque(100, percent);
+}
 
 int main() {
   // Initializing Robot Configuration. DO NOT REMOVE!
   vexcodeInit();
+  setMotors();
 
+  reset_game();
+
+  //make_dot_grid
+  //set one place to 0
+  //then check if the thing there is 0
 
   //move
   //y_motor.setVelocity(20, percent);
@@ -396,46 +461,15 @@ int main() {
   //     wait(100, msec);
   // }
 
-  x_motor.setVelocity(60, percent);
-  y_motor.setVelocity(50, percent);
-  pen_motor.setVelocity(70, percent);
+  //make_dot_grid();
 
-  x_motor.setMaxTorque(100, percent);
-  y_motor.setMaxTorque(100, percent);
+  //moves forward to test
+  //x_motor.spinFor(forward, 160, degrees);
+  //make_mark();
 
-
-  reset_game();
   move_to_mark(0, 0);
-
   move_to_mark(2, 2);
-
   move_to_mark(1, 1);
-
-  // x_motor.spinFor(reverse, 500, degrees);
-  
-  // // makes three dots
-
-  // x_motor.spinFor(forward, 160, degrees);
-  // make_mark();
-  // x_motor.spinFor(forward, 160, degrees);
-  // make_mark();
-  // x_motor.spinFor(forward, 160, degrees);
-  // make_mark();
-
-  // y_motor.spinFor(forward, 160, degrees);
-  // make_mark();
-  // x_motor.spinFor(reverse, 160, degrees);
-  // make_mark();
-  // x_motor.spinFor(reverse, 160, degrees);
-  // make_mark();
-  
-  // y_motor.spinFor(forward, 160, degrees);
-  // make_mark();
-  // x_motor.spinFor(forward, 160, degrees);
-  // make_mark();
-  // x_motor.spinFor(forward, 160, degrees);
-  // make_mark();
-  
 
   //multiplied by the column number
 
