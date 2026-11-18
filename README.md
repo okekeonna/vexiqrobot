@@ -1,218 +1,136 @@
 # VEX IQ Robotic Tic-Tac-Toe
 
-An interactive Tic-Tac-Toe robot designed for the MTE 100 engineering design project. The robot is intended to let a person play against an autonomous opponent while interacting with a physical game board.
+An interactive Tic-Tac-Toe robot for the MTE 100 engineering design project. A person plays against an autonomous opponent on a physical board: the robot senses the human's move with an optical sensor, picks its reply with minimax, and marks the board with a bingo dabber on an X-Y gantry.
 
-> **Project status:** Design and implementation in progress. This README describes the **planned software architecture from our formal presentation**, not a claim that every feature has been implemented or tested.
+> **Project status:** In progress. Game logic (board, win/draw detection, minimax) and basic gantry/pen movement exist in `main.cpp`. Sensing, Y/pen homing, and the full gameplay loop are **not yet implemented**. `main()` currently runs a gantry movement test only.
 
-## Project goal
+## Files
 
-Build a robot that can:
-1. Present the game board to a human player.
-2. Wait for the player to indicate that they have completed a move.
-3. Scan the board with an optical sensor to identify the new move.
-4. Calculate an optimal legal response using the minimax algorithm.
-5. Move an X-Y mechanism to the selected cell and place a mark with a bingo dabber.
-6. Repeat until a player wins or the game ends in a draw.
-7. Display the result and return to a safe home position.
-
-## Hardware and inputs
-
-The mechanical concept is a **bedslinger-style X-Y gantry**, inspired by 3D printers. The intended actuators and inputs are:
-
-| Component | Planned responsibility |
+| File | Purpose |
 | --- | --- |
-| X-axis motor | Position the marking/sensing mechanism along one axis |
-| Y-axis motor | Position the bed or mechanism along the other axis |
-| Pen-lift motor | Lower and raise the bingo dabber |
-| Touch sensor | Signal when the human has finished their turn / is ready |
-| Optical sensor | Read the board's cell colours to detect the player's move |
-| Bumper | Support homing, limit detection, or a safety input, depending on final wiring |
-| Motor encoders | Provide position feedback for controlled movement |
+| `main.cpp` | Current robot program (VEXcode IQ C++). **Source of truth.** |
+| `tictacproject.iqcpp` | VEXcode IQ project file. Its embedded code is an older version without the device configuration; re-sync it from `main.cpp` before uploading through VEXcode. |
+| `README.md` | This document. |
 
-**Note:** The exact axis-to-motor mapping, bumper behaviour, and sensor thresholds must be confirmed against the assembled robot.
+## Hardware configuration
 
-## High-level software architecture
+Declared in the VEXcode generated region of `main.cpp`:
 
-The controller is organized around three phases:
+| Device | Port | Variable | Role |
+| --- | --- | --- | --- |
+| Optical sensor | 1 | `Optical1` | Reads cell colour (hue) to detect marks |
+| Bumper | 2 | `Bumper2` | X-axis home limit switch |
+| TouchLED | 3 | `TouchLED3` | Player "start / ready" button |
+| Motor | 4 | `pen_motor` | Lowers / raises the bingo dabber |
+| Motor | 5 | `y_motor` | Y axis |
+| Motor | 6 | `x_motor` | X axis |
+| Brain inertial | built-in | `BrainInertial` | Only used to seed `rand()` (VEXcode boilerplate) |
 
-```text
-STARTUP
-  |
-  v
-Initialize motors, sensors and board state
-  |
-Home / calibrate axes
-  |
-Wait for player to start
-  |
-  v
-GAMEPLAY LOOP ------------------------------------+
-  |                                              |
-Move board toward player                         |
-  |                                              |
-Wait for touch-sensor confirmation                |
-  |                                              |
-Move board to scanning position                   |
-  |                                              |
-Scan nine cells using optical sensor              |
-  |                                              |
-Validate the detected human move                  |
-  |                                              |
-Update board state                                |
-  |                                              |
-Check for human win / draw --------------------+  |
-  |                                           |  |
-Calculate optimal robot move (minimax)         |  |
-  |                                           |  |
-Move gantry to target cell                     |  |
-  |                                           |  |
-Lower and raise bingo dabber                   |  |
-  |                                           |  |
-Update board state                             |  |
-  |                                           |  |
-Check for robot win / draw                     |  |
-  |                                           |  |
-  +-- if game continues ----------------------+--+
-  |
-  v
-SHUTDOWN
-  |
-Display winner or draw on VEX brain
-  |
-Return robot to home position
-  |
-Stop motors / end program
-```
+Motor settings (`setMotors()`): X 60 % velocity, Y 50 %, pen 70 %; X and Y max torque 100 %.
 
-The gameplay loop must terminate on **either a win or a draw**, not only when someone wins.
+## Coordinate and direction convention
+
+All gantry motion uses the constants defined near the top of the project code. Never use raw `forward` / `reverse` for the X or Y motors.
+
+| Constant | Value | Meaning |
+| --- | --- | --- |
+| `X_AWAY` | `reverse` | X toward higher cell index (away from the bumper) |
+| `X_HOME` | `forward` | X back toward cell 0 / into `Bumper2` |
+| `Y_AWAY` | `forward` | Y toward higher cell index |
+| `Y_HOME` | `reverse` | Y back toward cell 0 |
+| `CELL_DEGREES` | `160` | Motor degrees between neighbouring cells |
+
+- **Home is cell (0, 0)**: X pressed against `Bumper2`, Y at its start position.
+- Gantry cell coordinates are `(x, y)`, each 0–2.
+- The board array is indexed `board[row][col]`. **The mapping between `(row, col)` and gantry `(x, y)` is not yet defined in code**. Confirm it on the assembled robot and pick one mapping before connecting minimax output to `move_to_mark`.
 
 ## Board representation
 
-Represent the 3×3 board as a two-dimensional array, for example:
+```cpp
+const int EMPTY = 0;
+const int HUMAN = 1;
+const int ROBOT = 2;
 
-```text
-EMPTY = 0
-HUMAN = 1
-ROBOT = 2
-
-board = [
-  [0, 0, 0],
-  [0, 0, 0],
-  [0, 0, 0]
-]
+int board[3][3];   // global, starts all EMPTY
 ```
 
-The values above are illustrative; choose constants appropriate for the actual VEX IQ programming environment. The software should maintain a single authoritative board state and update it **only after a move has been validated or successfully executed**.
+Optical colour mapping in `check_color()`: **purple → HUMAN (1)**, **green → ROBOT (2)**, otherwise **white → EMPTY (0)**.
 
-## Proposed modules / functions
+## Functions in `main.cpp`
 
-These are **conceptual interfaces**, not confirmed source-code signatures.
+### Game logic
 
-| Function | Responsibility |
+| Function | What it does |
 | --- | --- |
-| `move_gantry(x, y)` | Convert a target cell/position into controlled X-Y motor movement |
-| `move_pen(up_down)` | Lower the dabber to mark the paper, then retract it |
-| `sense_move()` | Scan the board and return a candidate human move |
-| `update_board(move, player)` | Validate and record a legal move in the 3×3 state |
-| `make_decision(board)` | Run minimax to choose the robot's best legal countermove |
-| `output_winner(board)` | Determine/display a win, loss, or draw |
+| `print_board()` | Clears the brain screen and prints the 3×3 board as numbers |
+| `update_board(move, bx, by)` | Writes `move` into `board[bx][by]` if empty and returns `true`; otherwise prints "Invalid input" and returns `false`. No range check. |
+| `check_winnner()` | Returns `HUMAN` / `ROBOT` for three-in-a-row, `-1` if the game is still going, `0` for a draw |
+| `minimax(depth, isMaximizing)` | Full-depth minimax over the global board. Scores `10 - depth` for a robot win, `depth - 10` for a human win, `0` for a draw |
+| `find_best_move(bestRow, bestCol)` | Tries every empty cell for `ROBOT` and returns the highest-scoring one; `-1, -1` if the board is full |
 
-Additional helpers will likely be useful:
+### Motion and sensing
 
-- `home_axes()`: establish a repeatable origin before moving to game cells.
-- `cell_to_position(row, col)`: map a board cell to motor target coordinates.
-- `is_valid_move(row, col, board)`: reject out-of-range or occupied cells.
-- `check_game_result(board)`: detect three-in-a-row, a draw, or an ongoing game.
-- `stop_motors()`: bring actuators to a safe stop.
+| Function | What it does |
+| --- | --- |
+| `setMotors()` | Applies velocity / torque settings |
+| `reset_game()` | Waits for a `TouchLED3` press, then drives X in `X_HOME` until `Bumper2` is pressed. **X only**; Y and pen are not homed. |
+| `make_mark()` | Pen down 140° then up 140° |
+| `move_to_mark(x, y)` | From home: moves `x` cells `X_AWAY`, `y` cells `Y_AWAY`, makes a mark, then returns home |
+| `make_dot_grid()` | Snake path from home marking all nine cells (0,0)…(2,2), then returns home |
+| `read_mark(x, y)` | Intended to read a cell. **Currently calls `move_to_mark`, so it marks the cell and reads at home**. Needs a move-only helper. |
+| `check_color()` | Reads `Optical1.hue()`: `< 150` green, `150–330` purple, else white. Displays and returns the matching board value |
+| `checkGrid()` | Commented out; incomplete (`x`, `y` undefined) |
 
-### 1. Startup and calibration
+### `main()` today
 
-On startup, initialize the motors and sensors, set the board to empty, and establish a known reference position. Homing should use the selected bumper/limit approach or another verified calibration method. The robot should **not** enter gameplay until calibration is complete.
+```text
+vexcodeInit() → setMotors() → reset_game()  (wait for touch, home X)
+→ move_to_mark(0,0) → move_to_mark(2,2) → move_to_mark(1,1) → end
+```
 
-### 2. Player interaction and sensing
+Earlier tests (minimax on a preset board, `check_winnner`, colour reading, dot grid) remain in `main()` as comments.
 
-The bed moves into the player-accessible position. The robot waits for a touch-sensor press indicating that the player has made their move. It then moves to the scanning position and reads the relevant cells using the optical sensor.
+## Planned gameplay loop (not yet implemented)
 
-Compare the sensed board with the stored board state to identify **exactly one new, legal human move**. An unclear scan, a mark in an occupied cell, or multiple new marks should not silently overwrite the internal board state. The final strategy for rescan/retry feedback is still to be implemented.
+```text
+INITIALIZE → HOME → WAIT_FOR_PLAYER → SCAN_BOARD → VALIDATE_MOVE → CHECK_RESULT
+→ THINK (find_best_move) → MOVE_AND_MARK → CHECK_RESULT → WAIT_FOR_PLAYER ...
+Any win/draw → SHUTDOWN (display result, return home, stop motors)
+Invalid scan → RETRY / ERROR (never act on an unverified move)
+```
 
-### 3. Decision-making: minimax
+The board should only be updated after a human move is validated (exactly one new mark in an empty cell) or after the robot's mark is made.
 
-After a valid human move is stored, evaluate whether the game has already ended. If not, run minimax over the remaining legal moves.
+## Known issues / to-do
 
-- A robot win is a favourable terminal state.
-- A human win is an unfavourable terminal state.
-- A draw is neutral.
-- The robot maximizes its outcome; the human is assumed to choose the strongest response.
+- [ ] `read_mark` marks the paper instead of only moving. Split out a `move_to_cell(x, y)` without `make_mark()`.
+- [ ] `check_color` reads hue *before* its 1 s wait, clears the screen (erasing the board), and never turns on the optical LED (`Optical1.setLight(ledState::on)`; old comment refers to `Optical8`).
+- [ ] Hue alone is unreliable for white paper. Consider brightness/saturation, and recalibrate thresholds on the real board (hue exactly 150 and ≥ 330 currently fall to "white").
+- [ ] Home Y and the pen; reset encoder positions after homing.
+- [ ] Busy-wait loops in `reset_game` have no `wait()`, debounce, or timeout.
+- [ ] Define the `board[row][col]` ↔ gantry `(x, y)` mapping.
+- [ ] Add range checks to `update_board` / `move_to_mark`.
+- [ ] Brain screen rows 5–6 are used for messages. Verify they are visible on the IQ brain.
+- [ ] Implement the gameplay loop, scanning of all nine cells, and shutdown.
+- [ ] Re-sync `tictacproject.iqcpp` with `main.cpp`.
 
-Optionally prefer faster wins and slower losses by incorporating search depth into terminal scores. The selected move must be in an empty cell.
-
-### 4. Robot movement and marking
-
-Convert the chosen row and column into calibrated motor coordinates. Move the gantry to the target, lower the bingo dabber to mark the square, and raise it again before travelling. Record the robot move in the board array only after the marking sequence succeeds, or use a clearly defined recovery state if success cannot be verified.
-
-### 5. End-of-game shutdown
-
-After each human and robot turn, check for a winner or draw. When the game ends, display the result on the VEX brain, return to the home position if safe, stop the motors, and exit the gameplay loop.
-
-## State machine (suggested)
-
-A state-based implementation can make the main program easier to debug:
-
-`INITIALIZE → HOME → WAIT_FOR_PLAYER → SCAN_BOARD → VALIDATE_MOVE → CHECK_RESULT → THINK → MOVE_AND_MARK → CHECK_RESULT → WAIT_FOR_PLAYER`
-
-Any end-of-game result transitions to `SHUTDOWN`. Invalid scans should transition to a controlled `RETRY` or `ERROR` state rather than executing an unverified move.
-
-## Testing and validation plan
-
-These are **planned acceptance tests**. Record actual results separately as the robot is built.
+## Testing plan
 
 | Test | Procedure | Pass criterion |
 | --- | --- | --- |
-| Startup | Power on and home/calibrate | Homes safely and waits for input |
-| Gantry positioning | Command all nine cell centres | Reaches intended cell without collision |
-| Pen mechanism | Raise/lower five times | Makes a visible mark and retracts each time |
-| Optical detection | Place a mark in different cells | Identifies the correct new cell |
-| Game logic | Feed win, block and draw board states | Returns a legal, optimal move or correct result |
-| Full gameplay | Play an entire game | Alternates turns and detects the correct ending |
-| Shutdown | Complete a game | Displays result, homes safely, and stops motors |
-
-### Fault-handling tests to consider
-
-| Situation | Desired response |
-| --- | --- |
-| Player marks an occupied cell | Reject the move; keep stored board unchanged |
-| Optical sensor produces an unclear reading | Do not move until the reading is resolved |
-| Touch sensor is pressed repeatedly | Do not count duplicate turns |
-| Limit bumper activates unexpectedly | Stop or enter a safe fault state |
-| Gantry is obstructed | Stop or enter a safe fault state if detectable |
-| Sensor becomes unavailable | Do not execute a move based on invalid data |
-| Game reaches a draw | Display draw and shut down normally |
-
-Fault detection and recovery must be implemented and tested before they can be described as supported behaviour. Set quantitative positioning and sensing thresholds after measuring the actual hardware.
-
-## Implementation checklist
-
-- [ ] Assemble and calibrate the bedslinger gantry
-- [ ] Verify X-axis, Y-axis, and pen-lift motor movement
-- [ ] Implement homing and cell-to-position mapping
-- [ ] Read and debounce the touch sensor
-- [ ] Calibrate optical readings for all nine board cells
-- [ ] Implement board-state validation and winner/draw detection
-- [ ] Implement and test minimax independently
-- [ ] Integrate sensing, decision-making, and marking
-- [ ] Add safe shutdown and feasible fault handling
-- [ ] Execute and document end-to-end acceptance tests
+| Homing | Power on, press TouchLED | X stops on bumper; waits for input |
+| Gantry positioning | `move_to_mark` on all nine cells / `make_dot_grid()` | Dots land on the intended cells, no collision |
+| Pen mechanism | `make_mark()` ×5 | Visible mark, pen retracts each time |
+| Optical detection | Place purple / green / blank under sensor | `check_color()` returns 1 / 2 / 0 |
+| Game logic | Preset win, block and draw boards | `find_best_move` returns the optimal legal move; `check_winnner` correct |
+| Full gameplay | Play an entire game | Alternates turns, detects the correct ending |
 
 ## Stretch goals
 
-Beyond the MVP, the team has considered drawing X's and O's, replacing the bingo dabber with a pick-and-place claw, and rotating the game field to improve cycle time. These are **proposed enhancements**, not required for the baseline gameplay loop.
+Drawing X's and O's, replacing the dabber with a pick-and-place claw, and rotating the game field to improve cycle time.
 
 ## Team
 
 Brandon Choi · Matthias Six · Onna Okeke · Nathaniel Rayman
 
-**Course:** MTE 100 — University of Waterloo
-
----
-
-This document captures the architecture presented in the team's formal design presentation. As implementation progresses, update it with actual file names, function signatures, hardware port assignments, calibration values, and verified test results.
+**Course:** MTE 100, University of Waterloo

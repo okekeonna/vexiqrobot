@@ -34,6 +34,7 @@ bumper Bumper2 = bumper(PORT2);
 touchled TouchLED3 = touchled(PORT3);
 motor pen_motor = motor(PORT4, false);
 motor y_motor = motor(PORT5, false);
+motor y_motor2 = motor(PORT11, true); // mirror of y_motor, reversed so both push the same way
 
 
 // generating and setting random seed
@@ -115,15 +116,32 @@ void vexcodeInit() {
 //                                                                            
 //----------------------------------------------------------------------------
 
-// Include the IQ Library
-#include "iq_cpp.h"
-
 // Allows for easier use of the VEX Library
 using namespace vex;
 
 const int EMPTY = 0;
 const int HUMAN = 1;
 const int ROBOT = 2;
+
+
+// 24 tooth gear on a rack: 1 cm = 45 degrees. There are a total of 35 teeth that the x motor runs on. Honing resets at 0. 
+const int DEGREES_TO_LOWER_PEN = 135; // degrees to lower the pen
+const int STROKE_DEGREES = 95; // length of each plus line, 2 cm (measured: 525 degrees drew 11 cm, about 48 per cm)
+
+// Grid: 10 x 10 cm, 3 x 3 cells. Measured: x 48 degrees per cm, y 50 degrees per cm
+const int X_CELL_DEGREES = 160; // 3.33 cm, grid is 480 wide
+const int Y_CELL_DEGREES = 167; // 3.33 cm, grid is 501 tall
+
+// Cell centres in degrees from home (x = away from bumper, y = away from datum)
+//   1: (80, 83)    2: (240, 83)    3: (400, 83)
+//   4: (80, 250)   5: (240, 250)   6: (400, 250)
+//   7: (80, 417)   8: (240, 417)   9: (400, 417)
+
+// Motor speeds
+const int X_SPEED = 100;
+const int Y_SPEED = 100;
+const int PEN_SPEED = 30; // slow so the pen stops close to its target
+
 
 // Creates an empty board
 int board[3][3] = {
@@ -221,7 +239,7 @@ int check_color(){
   wait(1, seconds);
   Brain.Screen.clearScreen();
 
-  if (myhue < 150) {
+  if (myhue <= 150) {
     Brain.Screen.print("Green");
     move = 2;
   } else if (myhue > 150 && myhue < 330){
@@ -326,45 +344,118 @@ void find_best_move(int &bestRow, int &bestCol) {
     }
 }
 
+// spins a motor a set number of degrees
+void move_motor(motor &motor, directionType direction, int angle, int speed){
+  motor.resetPosition(); // reset position
+  motor.spin(direction, speed, percent); // start spinning
+
+  if (direction == forward) {
+    while (motor.position(degrees) < angle) {}
+  } else {
+    while (motor.position(degrees) > -angle) {}
+  }
+
+  motor.stop();
+}
+
+// spins both y motors together a set number of degrees
+void move_y(directionType direction, int angle, int speed){
+  y_motor.resetPosition(); // reset positions
+  y_motor2.resetPosition();
+
+  y_motor.spin(direction, speed, percent); // start both spinning
+  y_motor2.spin(direction, speed, percent);
+
+  if (direction == forward) {
+    while (y_motor.position(degrees) < angle) {}
+  } else {
+    while (y_motor.position(degrees) > -angle) {}
+  }
+
+  y_motor.stop();
+  y_motor2.stop();
+}
+
+// lowers the pen onto the paper
+void pen_down(){
+  move_motor(pen_motor, forward, DEGREES_TO_LOWER_PEN, PEN_SPEED);
+}
+
+// lifts the pen off the paper
+void pen_up(){
+  move_motor(pen_motor, reverse, DEGREES_TO_LOWER_PEN, PEN_SPEED);
+}
+
+// draws a plus centred where the pen is
+void draw_plus(){
+  int half = STROKE_DEGREES / 2;
+
+  // x line
+  move_motor(x_motor, reverse, half, X_SPEED); // go to start of line
+  pen_down();
+  move_motor(x_motor, forward, STROKE_DEGREES, X_SPEED); // draw line
+  pen_up();
+  move_motor(x_motor, reverse, half, X_SPEED); // back to centre
+
+  // y line
+  move_y(reverse, half, Y_SPEED); // go to start of line
+  pen_down();
+  move_y(forward, STROKE_DEGREES, Y_SPEED); // draw line
+  pen_up();
+  move_y(reverse, half, Y_SPEED); // back to centre
+}
+
+// drives x into the bumper, x is now at 0
+void home_x(){
+  x_motor.spin(forward, X_SPEED, percent); // home x against the bumper
+  while(!Bumper2.pressing()){}
+  x_motor.stop();
+}
+
 // reset the game // Matthias function
 void reset_game(){
 
   while(!TouchLED3.pressing()){};
-  x_motor.setMaxTorque(100, percent);
-  x_motor.spin(forward, 60, percent);
-  while(!Bumper2.pressing()){}
-  x_motor.stop();
-  
+
+  home_x();
 }
 
-// make the mark // Matthias function
-void make_mark(){
-  pen_motor.setVelocity(70, percent);
-  pen_motor.spinFor(forward, 140, degrees);
-  pen_motor.spinFor(reverse, 140, degrees);
+// draws the 3 x 3 grid (two lines each way)
+// y must already be at its datum (0)
+void draw_grid(){
+  reset_game(); // press TouchLED, home x. pen is now at (0, 0)
+
+  // first line along x, at y = 167, starting right at the bumper
+  move_y(forward, Y_CELL_DEGREES, Y_SPEED); // now at (0, 167)
+  pen_down();
+  move_motor(x_motor, reverse, 3 * X_CELL_DEGREES, X_SPEED); // now at (480, 167)
+  pen_up();
+
+  // second line along x, at y = 334
+  move_y(forward, Y_CELL_DEGREES, Y_SPEED); // now at (480, 334)
+  pen_down();
+  move_motor(x_motor, forward, 3 * X_CELL_DEGREES, X_SPEED); // now at (0, 334)
+  pen_up();
+
+  // first line along y, at x = 160
+  move_y(reverse, 2 * Y_CELL_DEGREES, Y_SPEED); // now at (0, 0)
+  move_motor(x_motor, reverse, X_CELL_DEGREES, X_SPEED); // now at (160, 0)
+  pen_down();
+  move_y(forward, 3 * Y_CELL_DEGREES, Y_SPEED); // now at (160, 501)
+  pen_up();
+
+  // second line along y, at x = 320
+  move_motor(x_motor, reverse, X_CELL_DEGREES, X_SPEED); // now at (320, 501)
+  pen_down();
+  move_y(reverse, 3 * Y_CELL_DEGREES, Y_SPEED); // now at (320, 0)
+  pen_up();
+
+  // back to home
+  home_x(); // now at (0, 0)
 }
 
-void move_to_mark(int x, int y){
-
-  int xspin = x*160;
-  int yspin = y*160;
-
-  x_motor.spinFor(reverse, xspin, degrees);
-  y_motor.spinFor(forward, yspin, degrees);
-  make_mark();
-
-  x_motor.spinFor(forward, xspin, degrees);
-  y_motor.spinFor(reverse, yspin, degrees);
-
-  x_motor.stop();
-  y_motor.stop();
-
-}
 
 void read_mark(int x, int y){
-  // go to the mark
-  move_to_mark(x, y);
-  
   wait(2, seconds);
   // read color
   int mark = check_color();
@@ -374,51 +465,11 @@ void read_mark(int x, int y){
 
 }
 
-void make_dot_grid(){
-  // makes three x three dots
-
-  x_motor.spinFor(forward, 160, degrees);
-  make_mark();
-  x_motor.spinFor(forward, 160, degrees);
-  make_mark();
-  x_motor.spinFor(forward, 160, degrees);
-  make_mark();
-
-  y_motor.spinFor(forward, 160, degrees);
-  make_mark();
-  x_motor.spinFor(reverse, 160, degrees);
-  make_mark();
-  x_motor.spinFor(reverse, 160, degrees);
-  make_mark();
-  
-  y_motor.spinFor(forward, 160, degrees);
-  make_mark();
-  x_motor.spinFor(forward, 160, degrees);
-  make_mark();
-  x_motor.spinFor(forward, 160, degrees);
-  make_mark();
-}
-
-/*
-void checkGrid(){
-  for(int r = 0; r < 3; r++){
-    for(int c = 0; c < 3; c++){
-      if(board[r][c] == EMPTY){
-        move_to_mark(x, y);
-        check_color();
-      }
-    }
-  }
-}
-*/
-
 void setMotors(){
-  x_motor.setVelocity(60, percent);
-  y_motor.setVelocity(50, percent);
-  pen_motor.setVelocity(70, percent);
-
-  x_motor.setMaxTorque(100, percent);
-  y_motor.setMaxTorque(100, percent);
+  x_motor.setVelocity(X_SPEED, percent);
+  y_motor.setVelocity(Y_SPEED, percent);
+  y_motor2.setVelocity(Y_SPEED, percent);
+  pen_motor.setVelocity(PEN_SPEED, percent);
 }
 
 int main() {
@@ -426,76 +477,5 @@ int main() {
   vexcodeInit();
   setMotors();
 
-  reset_game();
-
-  //make_dot_grid
-  //set one place to 0
-  //then check if the thing there is 0
-
-  //move
-  //y_motor.setVelocity(20, percent);
-  //y_motor.spin(reverse);
-
-
-  // // Human plays two moves
-  // update_board(HUMAN, 1, 1);
-  // update_board(HUMAN, 0, 1);
-
-  // // Robot already has one move
-  // update_board(ROBOT, 0, 0);
-
-  // wait(2, seconds);
-
-  // // Ask minimax to find the best move
-  // int bestRow, bestCol;
-  // find_best_move(bestRow, bestCol);
-
-  // if (bestRow != -1) {
-  //     update_board(ROBOT, bestRow, bestCol);
-  // }
-
-  // Brain.Screen.setCursor(5, 1);
-  // Brain.Screen.print("Robot: (%d,%d)", bestRow, bestCol);
-
-  // while (true) {
-  //     wait(100, msec);
-  // }
-
-  //make_dot_grid();
-
-  //moves forward to test
-  //x_motor.spinFor(forward, 160, degrees);
-  //make_mark();
-
-  move_to_mark(0, 0);
-  move_to_mark(2, 2);
-  move_to_mark(1, 1);
-
-  //multiplied by the column number
-
-  // // Begin project code
-  // print_board();
-
-  // wait(2, seconds);
-  // update_board(ROBOT, 1, 2);
-  // wait(2, seconds);
-  // update_board(ROBOT, 0, 2);
-  // wait(2, seconds);
-  // update_board(ROBOT, 2, 2);
-
-  // Brain.Screen.setCursor(6, 1);
-  // int winner = check_winnner();
-  // Brain.Screen.print("%d ", winner);
-
-  // Optical8.setLight(ledState::on);
-  // color mycolor = Optical8.color();
-  // Brain.Screen.setCursor(6, 1);
-
-  // while(true){
-  //   check_color();
-  // }
-
-
-  
-
+  draw_grid();
 }
