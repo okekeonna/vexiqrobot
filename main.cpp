@@ -126,7 +126,7 @@ const int ROBOT = 2;
 
 // 24 tooth gear on a rack: 1 cm = 45 degrees. There are a total of 35 teeth that the x motor runs on. Honing resets at 0. 
 // Z depths, measured down from the top (z homes there), 48 degrees per cm
-const int DEGREES_TO_LOWER_SENSOR = 149; // scanning: 3.1 cm down (2 cm saw green)
+const int DEGREES_TO_LOWER_SENSOR = 30; // scanning: 3.1 cm down (2 cm saw green)
 const int DEGREES_TO_LOWER_PEN = DEGREES_TO_LOWER_SENSOR + 48; // drawing: 1 cm lower than scanning (4.1 cm)
 
 // Colour sensing, measured with hue_test: paper 304-321, green 134-151, purple 256-290
@@ -150,7 +150,7 @@ const int Y_CELL_DEGREES = 167; // 3.33 cm, grid is 501 tall
 const int SMALL_X_CELL = 106; // 2.2 cm
 const int SMALL_Y_CELL = 110; // 2.2 cm
 const int SENSOR_Y_OFFSET = 192; // sensor is 3.83 cm ahead of the pen in +y (measured: 3.33 was 0.5 cm short)
-const int SENSOR_X_OFFSET = -48; // sensor is 1 cm toward the bumper from the pen (flip to 48 if it reads the wrong way)
+const int SENSOR_X_OFFSET = 0; // sensor is 1 cm toward the bumper from the pen (flip to 48 if it reads the wrong way)
 const int GRID_Y_START = 167; // grid starts one sensor offset up so the sensor can reach the first row
 const int GRID_X_START = 103; // centres the 318 wide grid in the 525 of x travel
 
@@ -176,6 +176,8 @@ const int CONTACT_SPEED = 10; // slow creep while looking for the paper
 const double CONTACT_CURRENT = 0.1; // amps, very low so it stops at the first bit of resistance
 const int SENSOR_ABOVE_PAPER = 48; // scan 1 cm above where the pen touched
 const int PEN_BACKOFF_DEGREES = 10; // after touching, lift 0.2 cm so the pen doesn't press too deep
+const int DAB_FROM_SENSOR_X = 0;  // 48 degrees per cm
+const int DAB_FROM_SENSOR_Y = 170; // 50 degrees per cm
 
 // Homing: drive slowly into the end of travel and stop when the motor stalls
 const int HOMING_SPEED = 10; // very slow so hitting the end is gentle
@@ -364,6 +366,8 @@ int minimax(int depth, bool isMaximizing) {
     }
 }
 
+
+
 // Find best move
 void find_best_move(int &bestRow, int &bestCol) {
     int bestScore = -1000;
@@ -475,25 +479,6 @@ void pen_up(){
   move_motor(pen_motor, reverse, depth, PEN_SPEED); // back up by exactly that much
 }
 
-// draws a plus centred where the pen is
-void draw_plus(){
-  int half = STROKE_DEGREES / 2;
-
-  // x line
-  move_motor(x_motor, reverse, half, X_SPEED); // go to start of line
-  pen_down();
-  move_motor(x_motor, forward, STROKE_DEGREES, X_SPEED); // draw line
-  pen_up();
-  move_motor(x_motor, reverse, half, X_SPEED); // back to centre
-
-  // y line
-  move_y(reverse, half, Y_SPEED); // go to start of line
-  pen_down();
-  move_y(forward, STROKE_DEGREES, Y_SPEED); // draw line
-  pen_up();
-  move_y(reverse, half, Y_SPEED); // back to centre
-}
-
 // drives x into the bumper, x is now at 0
 void home_x(){
   x_motor.spin(forward, X_SPEED, percent); // home x against the bumper
@@ -587,41 +572,6 @@ void reset_game(){
 
   home_x();
 }
-
-// draws the 3 x 3 grid (two lines each way)
-// y must already be at its datum (0)
-void draw_grid(){
-  reset_game(); // press TouchLED, home x. pen is now at (0, 0)
-
-  // first line along x, at y = 167, starting right at the bumper
-  move_y(forward, Y_CELL_DEGREES, Y_SPEED); // now at (0, 167)
-  pen_down();
-  move_motor(x_motor, reverse, 3 * X_CELL_DEGREES, X_SPEED); // now at (480, 167)
-  pen_up();
-
-  // second line along x, at y = 334
-  move_y(forward, Y_CELL_DEGREES, Y_SPEED); // now at (480, 334)
-  pen_down();
-  move_motor(x_motor, forward, 3 * X_CELL_DEGREES, X_SPEED); // now at (0, 334)
-  pen_up();
-
-  // first line along y, at x = 160
-  move_y(reverse, 2 * Y_CELL_DEGREES, Y_SPEED); // now at (0, 0)
-  move_motor(x_motor, reverse, X_CELL_DEGREES, X_SPEED); // now at (160, 0)
-  pen_down();
-  move_y(forward, 3 * Y_CELL_DEGREES, Y_SPEED); // now at (160, 501)
-  pen_up();
-
-  // second line along y, at x = 320
-  move_motor(x_motor, reverse, X_CELL_DEGREES, X_SPEED); // now at (320, 501)
-  pen_down();
-  move_y(reverse, 3 * Y_CELL_DEGREES, Y_SPEED); // now at (320, 0)
-  pen_up();
-
-  // back to home
-  home_x(); // now at (0, 0)
-}
-
 
 // test: scans along x away from the bumper and stops when it sees purple
 // logs x position and hue to the brain screen and the VS Code terminal
@@ -725,34 +675,20 @@ void go_to(int x, int y){
   }
 }
 
-// draws the 6.6 x 6.6 cm grid (two lines each way), run motor_calibration first
-void draw_small_grid(){
-  int x_end = GRID_X_START + 3 * SMALL_X_CELL;
-  int y_end = GRID_Y_START + 3 * SMALL_Y_CELL;
+// test: dabs at all 9 pen positions, compare the dots to the grid
+void go_to_test(){
+  int xs[3] = {156, 262, 368};
+  int ys[3] = {222, 332, 442};
 
-  // first line along x
-  go_to(GRID_X_START, GRID_Y_START + SMALL_Y_CELL);
-  pen_down();
-  go_to(x_end, GRID_Y_START + SMALL_Y_CELL);
-  pen_up();
-
-  // second line along x
-  go_to(x_end, GRID_Y_START + 2 * SMALL_Y_CELL);
-  pen_down();
-  go_to(GRID_X_START, GRID_Y_START + 2 * SMALL_Y_CELL);
-  pen_up();
-
-  // first line along y
-  go_to(GRID_X_START + SMALL_X_CELL, GRID_Y_START);
-  pen_down();
-  go_to(GRID_X_START + SMALL_X_CELL, y_end);
-  pen_up();
-
-  // second line along y
-  go_to(GRID_X_START + 2 * SMALL_X_CELL, y_end);
-  pen_down();
-  go_to(GRID_X_START + 2 * SMALL_X_CELL, GRID_Y_START);
-  pen_up();
+  for (int r = 0; r < 3; r++) {
+    for (int c = 0; c < 3; c++) {
+      go_to(xs[c], ys[r]);
+      printf("target (%d, %d)  actual (%d, %d)\n", xs[c], ys[r], current_x, current_y);
+      pen_down();
+      pen_up();
+    }
+  }
+  go_to(0, 0);
 }
 
 // reads one cell: lowers z, takes 10 readings, returns true if mostly green
@@ -892,11 +828,287 @@ void read_mark(int x, int y){
 
 }
 
+// test: puts the sensor over each cell centre in turn, press TouchLED to go to the next one
+// lowers to reading height and shows the hue, so you can check the sensor lines up with the cell
+void read_position_test(){
+  Optical1.setLight(ledState::on); // turn on the sensor light
+
+  for (int row = 0; row < 3; row++) {
+    for (int col = 0; col < 3; col++) {
+      // same position maths as read_cell, without the 3 spot sweep
+      int x = GRID_X_START + col * SMALL_X_CELL + SMALL_X_CELL / 2 - SENSOR_X_OFFSET;
+      int y = GRID_Y_START + row * SMALL_Y_CELL + SMALL_Y_CELL / 2 - SENSOR_Y_OFFSET;
+
+      // approach from the same side every time, like read_cell
+      go_to(x - BACKLASH_DEGREES, y - BACKLASH_DEGREES);
+      go_to(x, y);
+
+      move_motor(pen_motor, forward, sensor_depth, PEN_SPEED); // lower z to reading height
+      wait(200, msec);
+      int hue = Optical1.hue();
+
+      Brain.Screen.clearScreen();
+      Brain.Screen.setCursor(1, 1);
+      Brain.Screen.print("row %d col %d", row, col);
+      Brain.Screen.setCursor(2, 1);
+      Brain.Screen.print("x %d y %d", current_x, current_y);
+      Brain.Screen.setCursor(3, 1);
+      Brain.Screen.print("hue %d", hue);
+      printf("row %d col %d  target (%d, %d)  actual (%d, %d)  hue %d\n",
+             row, col, x, y, current_x, current_y, hue);
+
+      wait_for_press(); // look at the sensor, then press for the next cell
+      move_motor(pen_motor, reverse, sensor_depth, PEN_SPEED); // raise z before moving
+    }
+  }
+
+  go_to(0, 0);
+  printf("done\n"); // end of log
+}
+
+// scan status of each cell, only used to draw the grid while scanning
+const int NOT_SCANNED = 0;
+const int SCANNING = 1;
+const int SCANNED_EMPTY = 2;
+int scan_mark[3][3] = {
+  { NOT_SCANNED, NOT_SCANNED, NOT_SCANNED },
+  { NOT_SCANNED, NOT_SCANNED, NOT_SCANNED },
+  { NOT_SCANNED, NOT_SCANNED, NOT_SCANNED }
+};
+
+// sets every cell back to not scanned
+void clear_scan_marks(){
+  for (int r = 0; r < 3; r++) {
+    for (int c = 0; c < 3; c++) {
+      scan_mark[r][c] = NOT_SCANNED;
+    }
+  }
+}
+
+// shows the full 3 x 3 grid: G = player (green), R = robot, . = empty
+// row 0 (nearest the y datum) is the top line
+// shows the full 3 x 3 grid
+// G = player, R = robot, ? = reading now, - = read and empty, . = not read yet
+// row 0 (nearest the y datum) is the top line
+void show_grid(){
+  Brain.Screen.clearScreen();
+  for (int r = 0; r < 3; r++) {
+    Brain.Screen.setCursor(r + 1, 1);
+    for (int c = 0; c < 3; c++) {
+      if (board[r][c] == HUMAN) {
+        Brain.Screen.print("G ");
+      } else if (board[r][c] == ROBOT) {
+        Brain.Screen.print("R ");
+      } else if (scan_mark[r][c] == SCANNING) {
+        Brain.Screen.print("? ");
+      } else if (scan_mark[r][c] == SCANNED_EMPTY) {
+        Brain.Screen.print("- ");
+      } else {
+        Brain.Screen.print(". ");
+      }
+    }
+  }
+}
+
+// shows the board with a message underneath
+void show_message(const char* msg){
+  show_grid();
+  Brain.Screen.setCursor(5, 1);
+  Brain.Screen.print("%s", msg);
+}
+
+// reads one cell the same way read_position_test does: straight to the centre, no sweep
+// returns true if the cell has the player's green mark
+// shows each reading and the result on the brain screen
+// reads one cell: straight to the centre, no sweep
+// returns true if the cell has the player's green mark
+// reads one cell: straight to the centre, no sweep
+// returns true if the cell has the player's green mark
+bool read_cell_centre(int row, int col){
+  int x = GRID_X_START + col * SMALL_X_CELL + SMALL_X_CELL / 2 - SENSOR_X_OFFSET;
+  int y = GRID_Y_START + row * SMALL_Y_CELL + SMALL_Y_CELL / 2 - SENSOR_Y_OFFSET;
+
+  // show this cell as being read
+  scan_mark[row][col] = SCANNING;
+  show_message("Scanning...");
+
+  // approach from the same side every time
+  go_to(x - BACKLASH_DEGREES, y - BACKLASH_DEGREES);
+  go_to(x, y);
+
+  move_motor(pen_motor, forward, sensor_depth, PEN_SPEED); // lower z to reading height
+  wait(200, msec);
+
+  int green_count = 0;
+  for (int i = 0; i < 10; i++) {
+    int hue = Optical1.hue();
+    printf("row %d col %d  hue: %d\n", row, col, hue); // log to the terminal only
+    if (hue >= GREEN_HUE_MIN && hue <= GREEN_HUE_MAX) {
+      green_count = green_count + 1;
+    }
+    wait(50, msec);
+  }
+
+  move_motor(pen_motor, reverse, sensor_depth, PEN_SPEED); // raise z
+
+  return green_count >= 5; // at least half the readings green
+}
+
 void setMotors(){
   x_motor.setVelocity(X_SPEED, percent);
   y_motor.setVelocity(Y_SPEED, percent);
   y_motor2.setVelocity(Y_SPEED, percent);
   pen_motor.setVelocity(PEN_SPEED, percent);
+}
+
+
+
+// pen position that puts the sensor over a cell (same maths as read_cell_centre)
+int read_x(int col){
+  return GRID_X_START + col * SMALL_X_CELL + SMALL_X_CELL / 2 - SENSOR_X_OFFSET;
+}
+int read_y(int row){
+  return GRID_Y_START + row * SMALL_Y_CELL + SMALL_Y_CELL / 2 - SENSOR_Y_OFFSET;
+}
+
+// dabs a cell: start from the read position (sensor over the cell), then move by the sensor to dabber distance
+void dab_cell(int row, int col){
+  int x = read_x(col) + DAB_FROM_SENSOR_X;
+  int y = read_y(row) + DAB_FROM_SENSOR_Y;
+
+  // approach from the same side every time, like the reads
+  go_to(x - BACKLASH_DEGREES, y - BACKLASH_DEGREES);
+  go_to(x, y);
+  printf("dab row %d col %d at (%d, %d)\n", row, col, current_x, current_y);
+
+  pen_down();
+  wait(400, msec); // hold so the ink transfers
+  pen_up();
+}
+
+// test: dabs at the centre cell's READ position
+// the distance from the dot to the cell centre = the sensor to dabber distance
+void dab_offset_test(){
+  int x = read_x(1);
+  int y = read_y(1);
+  go_to(x - BACKLASH_DEGREES, y - BACKLASH_DEGREES);
+  go_to(x, y);
+  pen_down();
+  wait(400, msec);
+  pen_up();
+  go_to(0, 0);
+}
+
+// scans only the empty cells for a new green mark
+// updates the grid on the brain after every cell
+// returns how many it found, and where the last one was
+int find_human_move(int &move_row, int &move_col){
+  Optical1.setLight(ledState::on);
+  clear_scan_marks();
+  int found = 0;
+  int found_r[9];
+  int found_c[9];
+
+  for (int r = 0; r < 3; r++) {
+    for (int c = 0; c < 3; c++) {
+      if (board[r][c] == EMPTY) {
+        if (read_cell_centre(r, c)) {
+          found_r[found] = r;
+          found_c[found] = c;
+          found = found + 1;
+          move_row = r;
+          move_col = c;
+
+          board[r][c] = HUMAN; // G on the grid right away
+          show_message("Green found!");
+          printf("green at row %d col %d\n", r, c);
+        } else {
+          scan_mark[r][c] = SCANNED_EMPTY; // - on the grid right away
+          show_message("Scanning...");
+        }
+        wait(500, msec); // time to see the update
+      }
+    }
+  }
+
+  // more than one green is a misread, take them all back off the board
+  if (found > 1) {
+    for (int i = 0; i < found; i++) {
+      board[found_r[i]][found_c[i]] = EMPTY;
+    }
+  }
+
+  clear_scan_marks(); // back to a normal grid
+  go_to(0, 0); // out of the player's way
+  return found;
+}
+
+// plays one full game, human goes first
+void play_game(){
+  // start with an empty board
+  for (int r = 0; r < 3; r++) {
+    for (int c = 0; c < 3; c++) {
+      board[r][c] = EMPTY;
+    }
+  }
+
+  go_to(0, 0);
+  show_message("Your turn, press");
+
+  while (check_winnner() == -1) {
+    wait_for_press(); // human dabs a cell, then presses the TouchLED
+
+    // read the human's move
+    show_message("Scanning...");
+    int hr = -1;
+    int hc = -1;
+    int found = find_human_move(hr, hc);
+
+    if (found == 0) {
+      show_message("No mark, press");
+      continue; // dab or rescan, then press again
+    }
+    if (found > 1) {
+      show_message("2+ marks, press");
+      continue; // probably a misread, press to rescan
+    }
+
+    update_board(HUMAN, hr, hc);
+    printf("human: row %d col %d\n", hr, hc);
+    if (check_winnner() != -1) {
+      break; // human's move ended the game
+    }
+
+    // robot's move
+    show_message("Thinking...");
+    int rr = -1;
+    int rc = -1;
+    find_best_move(rr, rc);
+    printf("robot: row %d col %d\n", rr, rc);
+
+    show_message("My move");
+    dab_cell(rr, rc);
+    update_board(ROBOT, rr, rc);
+    go_to(0, 0); // out of the player's way
+
+    if (check_winnner() == -1) {
+      show_message("Your turn, press");
+    }
+  }
+
+  // game over
+  int result = check_winnner();
+  if (result == ROBOT) {
+    show_message("Robot wins!");
+  } else if (result == HUMAN) {
+    show_message("You win!");
+  } else {
+    show_message("Draw!");
+  }
+  printf("game over: %d\n", result);
+
+  go_to(0, 0);
+  home_x();
 }
 
 int main() {
@@ -905,15 +1117,21 @@ int main() {
   setMotors();
 
   motor_calibration(); // home z, x and y before anything moves
+  wait_for_press();
+  dab_cell(1, 1);
+  wait_for_press();
+  go_to(0,0);
+  //placepaper
+  //dab_cell(1, 1);
+  //dab_cell(1, 2);
+  //go_to(0, 0); // out of the way while cells are coloured
 
-  // grid scan test
-  wait_for_press(); // press 1: draw grid
-  draw_small_grid();
-  go_to(0, 0); // out of the way while cells are coloured
-  wait_for_press(); // press 2: start scan
-  scan_grid();
-  go_to(0, 0); // back to home
-  home_x();
+  // go_to_test();
+
+  // go_to(0, 0);
+
+  play_game();  
+  
 
   // y green scan test
   // wait_for_press(); // press: start scanning along y
