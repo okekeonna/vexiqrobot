@@ -202,24 +202,10 @@ int current_y = 0;
 // Green cells found by scan_grid, [row][col], row 0 is nearest the y datum
 bool green_cells[3][3];
 
-// Prints the board
-void print_board(){
-  Brain.Screen.clearScreen();
-  Brain.Screen.setCursor(1, 1);
-
-  for(int r = 0; r < 3; r ++){
-    for(int c = 0; c < 3; c++){
-      int move = board[r][2-c];
-      Brain.Screen.print("%d | ", move);
-    }
-    Brain.Screen.setCursor(r+2, 1);
-  }
-}
-
 // Updates the board with a game move
+// Author: Onna Okeke
 bool update_board(int move, int bx, int by){
   if(board[bx][by] != EMPTY) {
-    //print_board();
 
     Brain.Screen.setCursor(5, 1);
     Brain.Screen.print("Invalid input");
@@ -228,13 +214,13 @@ bool update_board(int move, int bx, int by){
 
   }else{
     board[bx][by] = move;
-    //print_board();
 
     return true;
   }
 
 }
 
+// Author: Onna Okeke
 int check_winnner(){
   // checks for any rows of winners
   for (int r = 0; r < 3; r++) {
@@ -282,6 +268,7 @@ int check_winnner(){
   return 0;
 }
 
+// Author: Onna Okeke
 int check_color(){
 
   int myhue = Optical1.hue();
@@ -306,6 +293,8 @@ int check_color(){
 }
 
 //Minimax algorithm 
+// Author: Onna Okeke
+// External Source: 
 int minimax(int depth, bool isMaximizing) {
     int result = check_winnner();
 
@@ -366,9 +355,8 @@ int minimax(int depth, bool isMaximizing) {
     }
 }
 
-
-
 // Find best move
+// Author: Onna Okeke
 void find_best_move(int &bestRow, int &bestCol) {
     int bestScore = -1000;
 
@@ -399,6 +387,7 @@ void find_best_move(int &bestRow, int &bestCol) {
 }
 
 // spins a motor a set number of degrees, returns how far it really went (including overshoot)
+// Author: Brandon Choi
 int move_motor(motor &motor, directionType direction, int angle, int speed){
   motor.resetPosition(); // reset position
   motor.spin(direction, speed, percent); // start spinning
@@ -420,6 +409,7 @@ int move_motor(motor &motor, directionType direction, int angle, int speed){
 }
 
 // spins both y motors together a set number of degrees, returns how far it really went
+// Author: Brandon Choi
 int move_y(directionType direction, int angle, int speed){
   y_motor.resetPosition(); // reset positions
   y_motor2.resetPosition();
@@ -445,6 +435,7 @@ int move_y(directionType direction, int angle, int speed){
 }
 
 // lowers the pen onto the paper
+// Author: Matthias Six
 void pen_down(){
   move_motor(pen_motor, forward, PAPER_SEARCH_START, PEN_SPEED); // fast to just above the paper (resets z to 0 first)
   pen_motor.spin(forward, CONTACT_SPEED, percent); // creep down
@@ -473,6 +464,7 @@ void pen_down(){
 }
 
 // lifts the pen off the paper
+// Author: Matthias Six
 void pen_up(){
   int depth = pen_motor.position(degrees); // how far down the pen really is (reset at the top of pen_down)
   pen_motor.stop(brake);
@@ -480,6 +472,7 @@ void pen_up(){
 }
 
 // drives x into the bumper, x is now at 0
+// Author: Nathaniel Rayman
 void home_x(){
   x_motor.spin(forward, X_SPEED, percent); // home x against the bumper
   while(!Bumper2.pressing()){}
@@ -489,6 +482,7 @@ void home_x(){
 }
 
 // checks if a motor has hit the end: pulling high current or barely moving
+// Author: Nathaniel Rayman
 bool is_stalled(motor &motor, int last_position){
   int change = motor.position(degrees) - last_position;
   if (change < 0) {
@@ -498,6 +492,7 @@ bool is_stalled(motor &motor, int last_position){
 }
 
 // lifts z until it stops at the top, z is now at 0 (pen fully up)
+// Author: Nathaniel Rayman
 void home_z(){
   pen_motor.spin(reverse, HOMING_SPEED, percent); // up
   wait(200, msec); // get moving before checking
@@ -517,6 +512,7 @@ void home_z(){
 }
 
 // drives y toward the datum until it stops at the end, then moves out to the datum, y is now at 0
+// Author: Nathaniel Rayman
 void home_y(){
   y_motor.spin(reverse, HOMING_SPEED, percent); // toward the datum end
   y_motor2.spin(reverse, HOMING_SPEED, percent);
@@ -542,6 +538,7 @@ void home_y(){
 }
 
 // homes every axis: z up first so the pen can't drag, then x, then y
+// Author: Nathaniel Rayman
 void motor_calibration(){
   Brain.Screen.clearScreen();
   Brain.Screen.setCursor(1, 1);
@@ -560,6 +557,7 @@ void motor_calibration(){
 }
 
 // waits for a fresh TouchLED press
+// Author: Matthias Six
 void wait_for_press(){
   TouchLED3.setColor(blue);
   TouchLED3.setBrightness(100);
@@ -568,7 +566,8 @@ void wait_for_press(){
   TouchLED3.setBrightness(0);
 }
 
-// reset the game // Matthias function
+// reset the game
+// Author: Matthias Six
 void reset_game(){
 
   while(!TouchLED3.pressing()){};
@@ -576,94 +575,9 @@ void reset_game(){
   home_x();
 }
 
-// test: scans along x away from the bumper and stops when it sees purple
-// logs x position and hue to the brain screen and the VS Code terminal
-void scan_color_test(){
-  reset_game(); // press TouchLED, home x
-  pen_down(); // lower z
-
-  Optical1.setLight(ledState::on); // turn on the sensor light
-  wait(500, msec);
-
-  x_motor.resetPosition();
-  x_motor.spin(reverse, SCAN_SPEED, percent); // start scanning
-
-  bool found_purple = false;
-  int purple_count = 0; // purple readings in a row
-
-  while (!found_purple && x_motor.position(degrees) > -3 * X_CELL_DEGREES) {
-    int x = -x_motor.position(degrees);
-    int hue = Optical1.hue();
-
-    printf("x: %d  hue: %d\n", x, hue); // log to the VS Code terminal
-
-    Brain.Screen.setCursor(2, 1);
-    Brain.Screen.print("x: %d hue: %d   ", x, hue);
-
-    if (hue >= PURPLE_HUE_MIN && hue <= PURPLE_HUE_MAX) {
-      purple_count = purple_count + 1;
-      if (purple_count >= PURPLE_READINGS) {
-        found_purple = true;
-      }
-    } else {
-      purple_count = 0;
-    }
-
-    if (hue >= GREEN_HUE_MIN && hue <= GREEN_HUE_MAX) {
-      Brain.Screen.setCursor(3, 1);
-      Brain.Screen.print("green seen at x: %d   ", x);
-    }
-
-    wait(20, msec);
-  }
-
-  x_motor.stop();
-
-  Brain.Screen.setCursor(1, 1);
-  if (found_purple) {
-    Brain.Screen.print("purple detected");
-    printf("purple detected\n");
-  } else {
-    Brain.Screen.print("white detected");
-    printf("white detected\n");
-  }
-
-  pen_up(); // raise z
-}
-
-// test: scans the full grid width along x and only shows the hue, never stops early
-void hue_test(){
-  reset_game(); // press TouchLED, home x
-  pen_down(); // lower z
-
-  Optical1.setLight(ledState::on); // turn on the sensor light
-  wait(500, msec);
-
-  x_motor.resetPosition();
-  x_motor.spin(reverse, SCAN_SPEED, percent); // start scanning
-
-  while (x_motor.position(degrees) > -3 * X_CELL_DEGREES) {
-    int x = -x_motor.position(degrees);
-    int hue = Optical1.hue();
-
-    printf("x: %d  hue: %d\n", x, hue); // log to the VS Code terminal
-
-    Brain.Screen.setCursor(1, 1);
-    Brain.Screen.print("x: %d   ", x);
-    Brain.Screen.setCursor(2, 1);
-    Brain.Screen.print("hue: %d   ", hue);
-
-    wait(20, msec);
-  }
-
-  x_motor.stop();
-  pen_up(); // raise z
-
-  printf("done\n"); // end of log
-}
-
 // moves the pen to a position in degrees from home (x first, then y)
 // uses how far each motor really went, so overshoot gets corrected on the next move
+// Author: Brandon Choi
 void go_to(int x, int y){
   if (x > current_x) {
     current_x = current_x + move_motor(x_motor, reverse, x - current_x, X_SPEED); // away from bumper
@@ -678,23 +592,8 @@ void go_to(int x, int y){
   }
 }
 
-// test: dabs at all 9 pen positions, compare the dots to the grid
-void go_to_test(){
-  int xs[3] = {156, 262, 368};
-  int ys[3] = {222, 332, 442};
-
-  for (int r = 0; r < 3; r++) {
-    for (int c = 0; c < 3; c++) {
-      go_to(xs[c], ys[r]);
-      printf("target (%d, %d)  actual (%d, %d)\n", xs[c], ys[r], current_x, current_y);
-      pen_down();
-      pen_up();
-    }
-  }
-  go_to(0, 0);
-}
-
 // reads one cell: lowers z, takes 10 readings, returns true if mostly green
+// Author: Brandon Choi
 bool read_cell(int row, int col){
   int x = GRID_X_START + col * SMALL_X_CELL + SMALL_X_CELL / 2 - SENSOR_X_OFFSET;
   int y = GRID_Y_START + row * SMALL_Y_CELL + SMALL_Y_CELL / 2 - SENSOR_Y_OFFSET;
@@ -729,6 +628,7 @@ bool read_cell(int row, int col){
 }
 
 // scans all 9 cells in a snake path and shows the results on the brain
+// Author: Brandon Choi
 void scan_grid(){
   Optical1.setLight(ledState::on); // turn on the sensor light
 
@@ -764,111 +664,6 @@ void scan_grid(){
   printf("done\n"); // end of log
 }
 
-// test: lowers z to reading height, drives y forward and stops on green or near the paper edge
-// logs y position and hue to the brain screen and the VS Code terminal
-void y_green_scan_test(){
-  Optical1.setLight(ledState::on); // turn on the sensor light
-  move_motor(pen_motor, forward, sensor_depth, PEN_SPEED); // lower z to reading height
-  wait(500, msec);
-
-  int start_y = current_y;
-  int y_limit = 480 - start_y; // stop before the end of y travel (500)
-
-  y_motor.resetPosition();
-  y_motor2.resetPosition();
-  y_motor.spin(forward, SCAN_SPEED, percent); // start scanning
-  y_motor2.spin(forward, SCAN_SPEED, percent);
-
-  bool found_green = false;
-  int green_count = 0; // green readings in a row
-
-  while (!found_green && y_motor.position(degrees) < y_limit) {
-    int y = start_y + y_motor.position(degrees);
-    int hue = Optical1.hue();
-
-    printf("y: %d  hue: %d\n", y, hue); // log to the VS Code terminal
-
-    Brain.Screen.setCursor(2, 1);
-    Brain.Screen.print("y: %d hue: %d   ", y, hue);
-
-    if (hue >= GREEN_HUE_MIN && hue <= GREEN_HUE_MAX) {
-      green_count = green_count + 1;
-      if (green_count >= GREEN_READINGS) {
-        found_green = true;
-      }
-    } else {
-      green_count = 0;
-    }
-
-    wait(20, msec);
-  }
-
-  y_motor.stop(brake);
-  y_motor2.stop(brake);
-  wait(SETTLE_MSEC, msec);
-  current_y = start_y + y_motor.position(degrees);
-
-  Brain.Screen.setCursor(1, 1);
-  if (found_green) {
-    Brain.Screen.print("green detected  ");
-    printf("green detected at y: %d\n", current_y);
-  } else {
-    Brain.Screen.print("no green, edge  ");
-    printf("no green, reached y: %d\n", current_y);
-  }
-
-  move_motor(pen_motor, reverse, sensor_depth, PEN_SPEED); // raise z
-  printf("done\n"); // end of log
-}
-
-void read_mark(int x, int y){
-  wait(2, seconds);
-  // read color
-  int mark = check_color();
-
-  Brain.Screen.setCursor(5, 1);
-  Brain.Screen.print("%d ", mark);
-
-}
-
-// test: puts the sensor over each cell centre in turn, press TouchLED to go to the next one
-// lowers to reading height and shows the hue, so you can check the sensor lines up with the cell
-void read_position_test(){
-  Optical1.setLight(ledState::on); // turn on the sensor light
-
-  for (int row = 0; row < 3; row++) {
-    for (int col = 0; col < 3; col++) {
-      // same position maths as read_cell, without the 3 spot sweep
-      int x = GRID_X_START + col * SMALL_X_CELL + SMALL_X_CELL / 2 - SENSOR_X_OFFSET;
-      int y = GRID_Y_START + row * SMALL_Y_CELL + SMALL_Y_CELL / 2 - SENSOR_Y_OFFSET;
-
-      // approach from the same side every time, like read_cell
-      go_to(x - BACKLASH_DEGREES, y - BACKLASH_DEGREES);
-      go_to(x, y);
-
-      move_motor(pen_motor, forward, sensor_depth, PEN_SPEED); // lower z to reading height
-      wait(200, msec);
-      int hue = Optical1.hue();
-
-      Brain.Screen.clearScreen();
-      Brain.Screen.setCursor(1, 1);
-      Brain.Screen.print("row %d col %d", row, col);
-      Brain.Screen.setCursor(2, 1);
-      Brain.Screen.print("x %d y %d", current_x, current_y);
-      Brain.Screen.setCursor(3, 1);
-      Brain.Screen.print("hue %d", hue);
-      printf("row %d col %d  target (%d, %d)  actual (%d, %d)  hue %d\n",
-             row, col, x, y, current_x, current_y, hue);
-
-      wait_for_press(); // look at the sensor, then press for the next cell
-      move_motor(pen_motor, reverse, sensor_depth, PEN_SPEED); // raise z before moving
-    }
-  }
-
-  go_to(0, 0);
-  printf("done\n"); // end of log
-}
-
 // scan status of each cell, only used to draw the grid while scanning
 const int NOT_SCANNED = 0;
 const int SCANNING = 1;
@@ -880,6 +675,7 @@ int scan_mark[3][3] = {
 };
 
 // sets every cell back to not scanned
+// Author: Brandon Choi
 void clear_scan_marks(){
   for (int r = 0; r < 3; r++) {
     for (int c = 0; c < 3; c++) {
@@ -893,6 +689,7 @@ void clear_scan_marks(){
 // shows the full 3 x 3 grid
 // G = player, R = robot, ? = reading now, - = read and empty, . = not read yet
 // row 0 (nearest the y datum) is the top line
+// Author: Onna Okeke
 void show_grid(){
   Brain.Screen.clearScreen();
   for (int r = 0; r < 3; r++) {
@@ -914,6 +711,7 @@ void show_grid(){
 }
 
 // shows the board with a message underneath
+// Author: Onna Okeke
 void show_message(const char* msg){
   show_grid();
   Brain.Screen.setCursor(5, 1);
@@ -927,6 +725,7 @@ void show_message(const char* msg){
 // returns true if the cell has the player's green mark
 // reads one cell: straight to the centre, no sweep
 // returns true if the cell has the player's green mark
+// Author: Brandon Choi
 bool read_cell_centre(int row, int col){
   int x = GRID_X_START + col * SMALL_X_CELL + SMALL_X_CELL / 2 - SENSOR_X_OFFSET;
   int y = GRID_Y_START + row * SMALL_Y_CELL + SMALL_Y_CELL / 2 - SENSOR_Y_OFFSET;
@@ -957,6 +756,7 @@ bool read_cell_centre(int row, int col){
   return green_count >= 5; // at least half the readings green
 }
 
+// Author: Brandon Choi
 void setMotors(){
   x_motor.setVelocity(X_SPEED, percent);
   y_motor.setVelocity(Y_SPEED, percent);
@@ -967,14 +767,17 @@ void setMotors(){
 
 
 // pen position that puts the sensor over a cell (same maths as read_cell_centre)
+// Author: Brandon Choi
 int read_x(int col){
   return GRID_X_START + col * SMALL_X_CELL + SMALL_X_CELL / 2 - SENSOR_X_OFFSET;
 }
+// Author: Brandon Choi
 int read_y(int row){
   return GRID_Y_START + row * SMALL_Y_CELL + SMALL_Y_CELL / 2 - SENSOR_Y_OFFSET;
 }
 
 // dabs a cell: start from the read position (sensor over the cell), then move by the sensor to dabber distance
+// Author: Brandon Choi
 void dab_cell(int row, int col){
   int x = read_x(col) + DAB_FROM_SENSOR_X;
   int y = read_y(row) + DAB_FROM_SENSOR_Y;
@@ -989,22 +792,10 @@ void dab_cell(int row, int col){
   pen_up();
 }
 
-// test: dabs at the centre cell's READ position
-// the distance from the dot to the cell centre = the sensor to dabber distance
-void dab_offset_test(){
-  int x = read_x(1);
-  int y = read_y(1);
-  go_to(x - BACKLASH_DEGREES, y - BACKLASH_DEGREES);
-  go_to(x, y);
-  pen_down();
-  wait(400, msec);
-  pen_up();
-  go_to(0, 0);
-}
-
 // scans only the empty cells for a new green mark
 // updates the grid on the brain after every cell
 // returns how many it found, and where the last one was
+// Author: Nathaniel Rayman
 int find_human_move(int &move_row, int &move_col){
   Optical1.setLight(ledState::on);
   clear_scan_marks();
@@ -1038,6 +829,7 @@ int find_human_move(int &move_row, int &move_col){
 }
 
 // plays one full game, human goes first
+// Author: Brandon Choi
 void play_game(){
   // start with an empty board
   for (int r = 0; r < 3; r++) {
@@ -1105,31 +897,16 @@ int main() {
   // Initializing Robot Configuration. DO NOT REMOVE!
   vexcodeInit();
   setMotors();
-
+ 
   motor_calibration(); // home z, x and y before anything moves
   wait_for_press();
+  
+  // move to middle spot in grid (for setup)
   dab_cell(1, 1);
   wait_for_press();
   go_to(0,0);
-  //placepaper
-  //dab_cell(1, 1);
-  //dab_cell(1, 2);
-  //go_to(0, 0); // out of the way while cells are coloured
 
-  // go_to_test();
-
-  // go_to(0, 0);
-
+  //place paper
   play_game();  
   
-
-  // y green scan test
-  // wait_for_press(); // press: start scanning along y
-  // y_green_scan_test();
-
-  // scan_color_test();
-
-  // hue_test();
-
-  // draw_grid();
 }
