@@ -893,6 +893,22 @@ void play_game(){
   home_x();
 }
 
+// Plays a short jingle, then ends the program
+// Author: Matthias Six
+void celebrate() {
+  // playNote(octave, note, duration_ms)  — notes: 0=C 1=D 2=E 3=F 4=G 5=A 6=B
+  Brain.playNote(3, 0, 150);  // C
+  Brain.playNote(3, 2, 150);  // E
+  Brain.playNote(3, 4, 150);  // G
+  Brain.playNote(4, 0, 300);  // high C
+  wait(100, msec);
+  Brain.playNote(3, 4, 150);  // G
+  Brain.playNote(4, 0, 600);  // high C (hold it!)
+
+  wait(200, msec);            // let the last note ring out
+  Brain.programStop();        // end the program
+}
+
 int main() {
   // Initializing Robot Configuration. DO NOT REMOVE!
   vexcodeInit();
@@ -908,5 +924,6 @@ int main() {
 
   //place paper
   play_game();  
-  
+
+  celebrate(); 
 }
