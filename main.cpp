@@ -897,12 +897,12 @@ void play_game(){
 // Author: Matthias Six
 void celebrate() {
   // playNote(octave, note, duration_ms)  — notes: 0=C 1=D 2=E 3=F 4=G 5=A 6=B
-  Brain.playNote(3, 0, 150);  // C
-  Brain.playNote(3, 2, 150);  // E
-  Brain.playNote(3, 4, 150);  // G
-  Brain.playNote(4, 0, 300);  // high C
+  Brain.playNote(3, 0, 300);  // C
+  Brain.playNote(3, 2, 300);  // E
+  Brain.playNote(3, 4, 300);  // G
+  Brain.playNote(4, 0, 600);  // high C
   wait(100, msec);
-  Brain.playNote(3, 4, 150);  // G
+  Brain.playNote(3, 4, 300);  // G
   Brain.playNote(4, 0, 600);  // high C (hold it!)
 
   wait(200, msec);            // let the last note ring out
