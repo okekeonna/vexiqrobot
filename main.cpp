@@ -34,7 +34,7 @@ bumper Bumper2 = bumper(PORT2);
 touchled TouchLED3 = touchled(PORT3);
 motor pen_motor = motor(PORT4, false);
 motor y_motor = motor(PORT5, false);
-motor y_motor2 = motor(PORT11, true); // mirror of y_motor, reversed so both push the same way
+motor y_motor2 = motor(PORT11, true);
 
 
 // generating and setting random seed
@@ -171,9 +171,9 @@ const int SETTLE_MSEC = 300; // pause after every move so the robot is still bef
 
 // Finding the paper: lower fast to just above it, then creep down until the pen touches
 const int PAPER_SEARCH_START = DEGREES_TO_LOWER_SENSOR - 48; // fast down to here, 1 cm above the scan depth
-const int PAPER_SEARCH_MAX = DEGREES_TO_LOWER_PEN + 96; // never go more than 2 cm below the old draw depth
+const int PAPER_SEARCH_MAX = DEGREES_TO_LOWER_PEN + 140; // never go more than 2 cm below the old draw depth
 const int CONTACT_SPEED = 10; // slow creep while looking for the paper
-const double CONTACT_CURRENT = 0.1; // amps, very low so it stops at the first bit of resistance
+const double CONTACT_CURRENT = 1; // amps, very low so it stops at the first bit of resistance
 const int SENSOR_ABOVE_PAPER = 48; // scan 1 cm above where the pen touched
 const int PEN_BACKOFF_DEGREES = 10; // after touching, lift 0.2 cm so the pen doesn't press too deep
 const int DAB_FROM_SENSOR_X = 0;  // 48 degrees per cm
@@ -209,7 +209,7 @@ void print_board(){
 
   for(int r = 0; r < 3; r ++){
     for(int c = 0; c < 3; c++){
-      int move = board[r][c];
+      int move = board[r][2-c];
       Brain.Screen.print("%d | ", move);
     }
     Brain.Screen.setCursor(r+2, 1);
@@ -219,7 +219,7 @@ void print_board(){
 // Updates the board with a game move
 bool update_board(int move, int bx, int by){
   if(board[bx][by] != EMPTY) {
-    print_board();
+    //print_board();
 
     Brain.Screen.setCursor(5, 1);
     Brain.Screen.print("Invalid input");
@@ -228,7 +228,7 @@ bool update_board(int move, int bx, int by){
 
   }else{
     board[bx][by] = move;
-    print_board();
+    //print_board();
 
     return true;
   }
@@ -452,9 +452,9 @@ void pen_down(){
 
   int last = pen_motor.position(degrees);
   wait(50, msec);
-  while (pen_motor.position(degrees) - last >= 1 && pen_motor.current(amp) < CONTACT_CURRENT
+  while (pen_motor.current(amp) < CONTACT_CURRENT
          && pen_motor.position(degrees) < PAPER_SEARCH_MAX) {
-    last = pen_motor.position(degrees);
+    //last = pen_motor.position(degrees);
     wait(50, msec);
   }
 
@@ -561,8 +561,11 @@ void motor_calibration(){
 
 // waits for a fresh TouchLED press
 void wait_for_press(){
+  TouchLED3.setColor(blue);
+  TouchLED3.setBrightness(100);
   while(TouchLED3.pressing()){} // wait for release
   while(!TouchLED3.pressing()){} // wait for press
+  TouchLED3.setBrightness(0);
 }
 
 // reset the game // Matthias function
@@ -747,7 +750,7 @@ void scan_grid(){
   for (int row = 0; row < 3; row++) {
     Brain.Screen.setCursor(row + 2, 1);
     for (int col = 0; col < 3; col++) {
-      if (green_cells[row][col]) {
+      if (green_cells[row][2-col]) {
         Brain.Screen.print("G ");
         printf("G ");
       } else {
@@ -895,13 +898,13 @@ void show_grid(){
   for (int r = 0; r < 3; r++) {
     Brain.Screen.setCursor(r + 1, 1);
     for (int c = 0; c < 3; c++) {
-      if (board[r][c] == HUMAN) {
+      if (board[r][2-c] == HUMAN) {
         Brain.Screen.print("G ");
-      } else if (board[r][c] == ROBOT) {
+      } else if (board[r][2-c] == ROBOT) {
         Brain.Screen.print("R ");
-      } else if (scan_mark[r][c] == SCANNING) {
+      } else if (scan_mark[r][2-c] == SCANNING) {
         Brain.Screen.print("? ");
-      } else if (scan_mark[r][c] == SCANNED_EMPTY) {
+      } else if (scan_mark[r][2-c] == SCANNED_EMPTY) {
         Brain.Screen.print("- ");
       } else {
         Brain.Screen.print(". ");
@@ -1005,23 +1008,21 @@ void dab_offset_test(){
 int find_human_move(int &move_row, int &move_col){
   Optical1.setLight(ledState::on);
   clear_scan_marks();
-  int found = 0;
-  int found_r[9];
-  int found_c[9];
 
   for (int r = 0; r < 3; r++) {
     for (int c = 0; c < 3; c++) {
       if (board[r][c] == EMPTY) {
         if (read_cell_centre(r, c)) {
-          found_r[found] = r;
-          found_c[found] = c;
-          found = found + 1;
           move_row = r;
           move_col = c;
 
           board[r][c] = HUMAN; // G on the grid right away
           show_message("Green found!");
           printf("green at row %d col %d\n", r, c);
+          wait(500,msec);
+          clear_scan_marks(); // back to a normal grid
+          go_to(0, 0); // out of the player's way
+          return 1;
         } else {
           scan_mark[r][c] = SCANNED_EMPTY; // - on the grid right away
           show_message("Scanning...");
@@ -1031,16 +1032,9 @@ int find_human_move(int &move_row, int &move_col){
     }
   }
 
-  // more than one green is a misread, take them all back off the board
-  if (found > 1) {
-    for (int i = 0; i < found; i++) {
-      board[found_r[i]][found_c[i]] = EMPTY;
-    }
-  }
-
   clear_scan_marks(); // back to a normal grid
   go_to(0, 0); // out of the player's way
-  return found;
+  return 0;
 }
 
 // plays one full game, human goes first
@@ -1067,10 +1061,6 @@ void play_game(){
     if (found == 0) {
       show_message("No mark, press");
       continue; // dab or rescan, then press again
-    }
-    if (found > 1) {
-      show_message("2+ marks, press");
-      continue; // probably a misread, press to rescan
     }
 
     update_board(HUMAN, hr, hc);
